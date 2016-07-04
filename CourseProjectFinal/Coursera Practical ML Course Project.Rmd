@@ -1,0 +1,129 @@
+---
+title: "Coursera Practical Machine Learning Course Project"
+author: "nsen"
+date: "July 3, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=TRUE, eval=TRUE, tidy=TRUE, message=FALSE, results='hide'}
+#knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Overview
+
+The goal of this anaysis is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants to build a model that that can predict, based on aquired data, the manner in which they did the exercise. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+```{r packages_used, message=FALSE}
+if(!require(caret)) install.packages("caret", dependencies = TRUE)
+require(caret)
+
+if(!require(data.table)) install.packages("data.table")
+require(data.table)
+
+if(!require(lattice)) install.packages("lattice")
+require(lattice)
+```
+
+## Methodology
+
+- Model Data Preparation
+- Feature Selection
+- Predictive Model Construction
+- Model Evaluation
+- Prediction
+
+
+## Model Data Preparation
+
+The data for this project come from this source: <http://groupware.les.inf.puc-rio.br/har>. 
+
+```{r download_files, cache=TRUE}
+dtTrain <- fread("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+dtTest <- fread("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+```
+
+Split trainng and test data for cross validation. Will use 60% of the data will be used for training, 40% for testing.
+
+```{r data_prep}
+set.seed(12345)
+
+train <- createDataPartition(dtTrain$classe, p=0.6, list=FALSE)
+
+#Split into Training Data and Test data
+dtTrainData <- dtTrain[train]
+dtTestData <- dtTrain[-train]
+
+#Set classe variable as factor to optimize performance
+dtTrainData$classe <- factor(dtTrainData$classe)
+dtTestData$classe <- factor(dtTestData$classe)
+
+
+
+```
+
+## Feature Selection
+In order to optimize model performance, we eliminate the near zero variance parameters. In addition we also remove parameters that have more than 90% NAs and the ones that do not seem relevant based on description and values.
+
+```{r features}
+#Remove variables which have Near Zero variance
+variables.nz <- nearZeroVar(dtTrainData)
+dtTrainData <- as.data.frame(dtTrainData)[,-variables.nz]
+dtTestData <- as.data.frame(dtTestData)[,-variables.nz]
+
+# Remove variables where more than 90% of the values are missing
+variables.na <- sapply(dtTrainData, function(x) mean(is.na(x))>0.90)
+dtTrainData <- as.data.frame(dtTrainData)[,variables.na == F]
+dtTestData <- as.data.frame(dtTestData)[,variables.na == F]
+
+#Remove first 6 variables as they do not seem to be relevant to the predition (using my own judgement here)
+dtTrainData <- dtTrainData[,-c(1:6)]
+dtTestData <- dtTestData[,-c(1:6)]
+```
+
+## Predicive Model Construction
+Random Forrest (rf) model will be used utilizing Cross Validation. Sample Training data set will be used to train the model. 3-fold cross validation will be applied.
+
+```{r models, cache=TRUE, message=FALSE, results='hide'}
+# Set up Cross Validation
+cv.con <- trainControl(method="cv", number = 3, verboseIter = TRUE)
+
+# Train Random Forrest model
+mod.rf <- train(classe ~., data=dtTrainData, method="rf", trControl=cv.con)
+
+# Save the model
+save(mod.rf, file='./mod_rf.RData')
+```
+
+```{r model_final, cache=TRUE,message=TRUE}
+plot(mod.rf)
+
+# display final model and examine parameters
+mod.rf$finalModel
+plot(mod.rf$finalModel)
+```
+Model used 500 trees and tried 27 variables at each split.
+
+## Model Evaluation
+Determining Out of Sample Error and Model accuracy.
+
+```{r model_eval}
+mod.rf.pred <- predict(mod.rf, newdata=dtTestData)
+mod.rf.cm <- confusionMatrix(mod.rf.pred, dtTestData$classe)
+
+mod.rf.cm
+```
+We have 99% accuracy at 95% CI. We can conlude that Random Forrest is a good prediction model and we will use it for that purpose.
+
+##Prediction
+
+Making preditions on the originally supplied test data.
+
+```{r prediction}
+
+# Use Random Forrest Model to predict
+mod.rf.pred <- predict(mod.rf, dtTest)
+
+# Results
+mod.rf.pred
+```
+
