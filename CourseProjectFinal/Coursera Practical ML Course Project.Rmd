@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE, echo=TRUE, eval=TRUE, tidy=TRUE, message=FALSE, results='hide'}
-#knitr::opts_chunk$set(echo = TRUE)
+
 ```
 
 ## Overview
